@@ -236,29 +236,37 @@ class Solver:
 
 if __name__ == "__main__":
     # 使用示例
-    
-    # 示例1: 使用贪心方法求解, s3 好一点
-    # solver = Solver(
-    #     data="E250_S1",
-    #     method="greedy-s3",
-    # )
-    # solver.run(C=10)
-    
-    # 示例2: 使用 Mealpy 遗传算法求解
-    # solver = Solver(
-    #     data="E250_S1",
-    #     method="mealpy-ga",
-    #     pop_size=50,
-    #     n_generations=100
-    # )
-    # solver.run(C=10)
-    
-    # 示例3: 使用 Gurobi 方法求解（需要安装 Gurobi）
-    solver = Solver(
-        data="E250_S2",
-        method="gurobi",
-        time_limit=300,  # 5分钟时间限制
-        verbose=True
-    )
-    solver.run(C=10)
+
+    # 设置使用的测试网络
+    sample_E = 250
+    sample_S_begin = 1
+    sample_S_end = 100
+
+    for data in range(sample_S_begin, sample_S_end + 1):
+        data = f"E{sample_E}_S{data}"
+        
+        # 示例1: 使用贪心方法求解, s3 好一点
+        solver = Solver(
+            data=data,
+            method="greedy-s3",
+        )
+        solver.run(C=10)
+        
+        # 示例2: 使用 Mealpy 遗传算法求解
+        solver = Solver(
+            data=data,
+            method="mealpy-ga",
+            pop_size=50,
+            n_generations=100
+        )
+        solver.run(C=10)
+        
+        # 示例3: 使用 Gurobi 方法求解（需要安装 Gurobi）
+        solver = Solver(
+            data=data,
+            method="gurobi",
+            time_limit=300,  # 5分钟时间限制
+            verbose=True
+        )
+        solver.run(C=10)
 
