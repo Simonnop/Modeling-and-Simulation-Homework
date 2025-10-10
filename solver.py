@@ -238,11 +238,11 @@ if __name__ == "__main__":
     # 使用示例
     
     # 示例1: 使用贪心方法求解, s3 好一点
-    solver = Solver(
-        data="E250_S1",
-        method="greedy-s3",
-    )
-    solver.run(C=10)
+    # solver = Solver(
+    #     data="E250_S1",
+    #     method="greedy-s3",
+    # )
+    # solver.run(C=10)
     
     # 示例2: 使用 Mealpy 遗传算法求解
     # solver = Solver(
@@ -254,11 +254,11 @@ if __name__ == "__main__":
     # solver.run(C=10)
     
     # 示例3: 使用 Gurobi 方法求解（需要安装 Gurobi）
-    # solver = Solver(
-    #     data="E250_S1",
-    #     method="gurobi",
-    #     time_limit=300,  # 5分钟时间限制
-    #     verbose=True
-    # )
-    # solver.run(C=10)
+    solver = Solver(
+        data="E250_S2",
+        method="gurobi",
+        time_limit=300,  # 5分钟时间限制
+        verbose=True
+    )
+    solver.run(C=10)
 

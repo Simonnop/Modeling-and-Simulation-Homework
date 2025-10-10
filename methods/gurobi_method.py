@@ -1,6 +1,7 @@
 import gurobipy as gp
+from gurobipy import GRB
+from typing import Dict, Set, List, Tuple
 import copy
-from typing import Dict, Set, Tuple, List
 from utils import find_max_connected_graph
 
 
@@ -10,187 +11,190 @@ def solve_gurobi(
     neighbor_nodes_dict: Dict[int, Set[int]],
     graph: Dict[int, Set[int]],
     C: int,
-    time_limit: int = None,
+    time_limit: int = 300,
     verbose: bool = True
 ) -> Tuple[List[Tuple[int, int]], int, Dict[int, Set[int]]]:
     """
-    使用 Gurobi 求解图切割问题
+    使用Gurobi求解器求解图分割优化问题
+    
+    优化模型：
+    min max u_i
+    s.t.
+    (1) sum c_i*v_i + sum c_{i,j}*v_{i,j} <= C (预算约束)
+    (2) u_{i,j} >= 1 - v_i - v_j - v_{i,j}, ∀(i,j) ∈ E (边连通性约束)
+    (3) u_{i,j} >= u_{k,j} - v_{i,k} - v_i, ∀i,j ∈ V, i≠j, ∀k ∈ N_G(i), k≠j (非邻居节点约束)
+    (4) u_{i,j} <= sum_{k∈N_G(i),k≠j} u_{k,j} + v_{i,j}, ∀(i,j) ∈ E (邻居节点下界)
+    (5) u_{i,j} <= sum_{k∈N_G(i),k≠j} u_{k,j}, ∀(i,j) ∈ E (邻居节点上界)
+    (6) u_{i,j} <= v_i, ∀i,j ∈ V
+    (7) u_{i,j} <= v_j, ∀i,j ∈ V
+    (8) v_i, v_{i,j} ∈ {0,1}, ∀i ∈ V, ∀(i,j) ∈ E
+    (9) u_{i,j} ∈ {0,1}, ∀i,j ∈ V
+    (10) u_{i,j} = u_{j,i}, ∀i,j ∈ V (对称性)
+    (11) u_i = sum_{j∈V} u_{i,j}, ∀i ∈ V (连通分量大小)
     
     Args:
-        nodes_dict: 节点字典 {节点ID: (经度, 纬度)}
-        edges_dict: 边字典 {(起点, 终点): 长度}
-        neighbor_nodes_dict: 邻居节点字典 {节点: {邻居节点集合}}
-        graph: 无向图的邻接表
+        nodes_dict: 节点字典
+        edges_dict: 边字典
+        neighbor_nodes_dict: 邻居节点字典
+        graph: 无向图邻接表
         C: 需要删除的边数量
-        time_limit: 求解时间限制（秒），默认为 None（无限制）
-        verbose: 是否显示求解过程
+        time_limit: 求解时间限制（秒）
+        verbose: 是否打印详细信息
     
     Returns:
         (移除的边列表, 最大连通子图大小, 残余图)
     """
-    print(f"\n=== 开始使用 Gurobi 求解 ===")
-    print(f"参数设置:")
-    print(f"  - 删除边数: {C}")
-    print(f"  - 时间限制: {time_limit if time_limit else '无限制'}")
     
-    # 模型所需参数
-    node_num = len(nodes_dict)
-    edge_num = len(edges_dict)
+    # 创建模型
+    model = gp.Model("GraphPartitioning")
     
-    # 构建模型
-    model = gp.Model("GraphCutProblem")
+    # 设置参数
+    model.Params.TimeLimit = time_limit
+    if not verbose:
+        model.Params.OutputFlag = 0
     
-    # 添加决策变量
-    # v_{i,j}: 边(i,j)是否被删除，1表示删除，0表示保留
-    v = {}
-    for (i, j) in edges_dict.keys():
-        v[(i, j)] = model.addVar(vtype=gp.GRB.BINARY, name=f'v_{i}_{j}')
+    # 获取节点和边集合
+    V = list(nodes_dict.keys())
+    n = len(V)
     
-    # u_{i,j}: 节点i和节点j是否连通，1表示连通，0表示不连通
-    u = []
-    for i in range(node_num):
-        u_i = []
-        for j in range(node_num):
-            u_ij = model.addVar(vtype=gp.GRB.BINARY, name=f'u_{i}_{j}')
-            u_i.append(u_ij)
-        u.append(u_i)
+    # 构建无向边集合
+    E = set()
+    for (u, v) in edges_dict.keys():
+        E.add((min(u, v), max(u, v)))
+    E = list(E)
     
-    # u_i: 节点i所在连通分量的大小（即与节点i连通的节点总数）
-    u_sum = []
-    for i in range(node_num):
-        u_sum.append(model.addVar(lb=0, ub=node_num, vtype=gp.GRB.INTEGER, name=f'u_sum_{i}'))
+    # 决策变量
+    # v_edge[(i,j)]: 边(i,j)是否被删除 (二进制)，1 表示删除
+    v_edge = model.addVars(E, vtype=GRB.BINARY, name="v_edge")
     
-    model.update()
+    # u[(i,j)]: 辅助变量，表示j是否可以从i到达 (二进制)
+    u = {}
+    for i in V:
+        for j in V:
+            u[i, j] = model.addVar(vtype=GRB.BINARY, name=f"u_{i}_{j}")
     
-    print(f"\n添加约束...")
+    # u_node[i]: 节点i所在连通分量的大小
+    u_node = model.addVars(V, vtype=GRB.CONTINUOUS, name="u_node", lb=0, ub=n)
     
-    # 约束(1)：删除边数量约束
-    # Σ v_{i,j} = C（删除C条边）
-    model.addConstr(gp.quicksum(list(v.values())) == C, name="edge_count")
+    # 目标变量：最大连通分量大小
+    max_u = model.addVar(vtype=GRB.CONTINUOUS, name="max_u", lb=0, ub=n)
     
-    # 约束(2)：邻居节点连通性约束下界
-    # u_{i,j} >= 1 - v_{i,j}, ∀(i,j) ∈ E
-    # 如果边(i,j)保留（v_{i,j}=0），则节点i和j必须连通（u_{i,j}>=1）
-    for (i, j) in edges_dict.keys():
-        model.addConstr(u[i][j] >= 1 - v[(i, j)], name=f"neighbor_lb_{i}_{j}")
+    # 目标函数：最小化最大连通分量大小
+    model.setObjective(max_u, GRB.MINIMIZE)
     
-    # 约束(3)：非邻居节点连通性约束下界
-    # u_{i,j} >= u_{k,j} - v_{i,k}, ∀i,j ∈ V, i≠j, ∀k ∈ N_G(i), k≠j
-    # 如果k和j连通，且边(i,k)保留，则i和j也连通
-    for i in range(node_num):
-        for j in range(node_num):
+    # 约束条件
+    
+    # (1) 预算约束：删除的边数量不超过C
+    # 这里简化为：删除边的数量 <= C
+    model.addConstr(gp.quicksum(v_edge[e] for e in E) <= C, name="budget")
+    
+    # (2) 边连通性约束：若(i,j)为边且未被删除，则 u_{i,j} 必须为1
+    # 形式化：u_{i,j} >= 1 - v_{i,j}
+    for (i, j) in E:
+        model.addConstr(
+            u[i, j] >= 1 - v_edge[i, j],
+            name=f"edge_conn_{i}_{j}"
+        )
+    
+    # (3) 传递约束：通过邻居k到达j时，若(i,k)边未被删除，则 i 可以到达 j
+    # 形式化：u_{i,j} >= u_{k,j} - v_{i,k}, ∀k∈N(i), k≠j
+    for i in V:
+        neighbors_i = graph.get(i, set())
+        for j in V:
             if i == j:
                 continue
-            for k in neighbor_nodes_dict[i]:
+            for k in neighbors_i:
                 if k == j:
                     continue
-                # 找到边(i,k)或(k,i)
-                edge_key = None
-                if (i, k) in edges_dict:
-                    edge_key = (i, k)
-                elif (k, i) in edges_dict:
-                    edge_key = (k, i)
-                
-                if edge_key:
-                    model.addConstr(
-                        u[i][j] >= u[k][j] - v[edge_key],
-                        name=f"non_neighbor_lb_{i}_{j}_{k}"
-                    )
+                e_ik = (min(i, k), max(i, k))
+                model.addConstr(
+                    u[i, j] >= u[k, j] - v_edge[e_ik],
+                    name=f"non_neighbor_{i}_{j}_{k}"
+                )
     
-    # 约束(4)：非邻居节点连通性约束上界（邻居）
-    # u_{i,j} <= Σ_{k∈N_G(i),k≠j} u_{k,j} + v_{i,j}, ∀(i,j) ∈ E
-    for (i, j) in edges_dict.keys():
-        neighbors_excluding_j = [k for k in neighbor_nodes_dict[i] if k != j]
-        if neighbors_excluding_j:
+    # (4) (5) 邻接/非邻接传播的上界约束
+    # 若 (i,j) ∈ E： u_{i,j} <= sum_{k∈N(i)\{j}} u_{k,j} + v_{i,j}
+    for (i, j) in E:
+        neighbors_i = [k for k in graph.get(i, set()) if k != j]
+        if neighbors_i:
             model.addConstr(
-                u[i][j] <= gp.quicksum([u[k][j] for k in neighbors_excluding_j]) + v[(i, j)],
-                name=f"neighbor_ub_{i}_{j}"
+                u[i, j] <= gp.quicksum(u[k, j] for k in neighbors_i) + v_edge[i, j],
+                name=f"neighbor_edge_{i}_{j}"
             )
-    
-    # 约束(5)：非邻居节点连通性约束上界（非邻居）
-    # u_{i,j} <= Σ_{k∈N_G(i),k≠j} u_{k,j}, ∀(i,j) ∉ E
-    for i in range(node_num):
-        for j in range(node_num):
-            if i == j:
+
+    # 若 (i,j) ∉ E： u_{i,j} <= sum_{k∈N(i)\{j}} u_{k,j}
+    for i in V:
+        neighbors_i = graph.get(i, set())
+        for j in V:
+            if i == j or j in neighbors_i:
                 continue
-            # 检查(i,j)是否为边
-            is_edge = (i, j) in edges_dict or (j, i) in edges_dict
-            if not is_edge:
-                neighbors_excluding_j = [k for k in neighbor_nodes_dict[i] if k != j]
-                if neighbors_excluding_j:
-                    model.addConstr(
-                        u[i][j] <= gp.quicksum([u[k][j] for k in neighbors_excluding_j]),
-                        name=f"non_neighbor_ub_{i}_{j}"
-                    )
+            neighbors_i_except_j = [k for k in neighbors_i if k != j]
+            if neighbors_i_except_j:
+                model.addConstr(
+                    u[i, j] <= gp.quicksum(u[k, j] for k in neighbors_i_except_j),
+                    name=f"neighbor_nonedge_{i}_{j}"
+                )
     
-    # 约束(10)：连通性对称性
-    # u_{i,j} = u_{j,i}, ∀i,j ∈ V
-    for i in range(node_num):
-        for j in range(i + 1, node_num):
-            model.addConstr(u[i][j] == u[j][i], name=f"symmetry_{i}_{j}")
+    # (6)(7) 节点变量 v_i 在本问题中不使用（仅删边），因此不设置对应上界约束
     
-    # 约束：节点与自己连通
-    # u_{i,i} = 1, ∀i ∈ V
-    for i in range(node_num):
-        model.addConstr(u[i][i] == 1, name=f"self_connected_{i}")
+    # (10) 对称性约束
+    for i in V:
+        for j in V:
+            if i < j:
+                model.addConstr(u[i, j] == u[j, i], name=f"symmetry_{i}_{j}")
     
-    # 约束(11)：计算每个节点所在连通分量大小
-    # u_i = Σ_{j∈V} u_{i,j}, ∀i ∈ V
-    for i in range(node_num):
+    # 自达约束：每个节点能到达自身
+    for i in V:
+        model.addConstr(u[i, i] == 1, name=f"self_reach_{i}")
+
+    # (11) 连通分量大小定义
+    for i in V:
         model.addConstr(
-            u_sum[i] == gp.quicksum([u[i][j] for j in range(node_num)]),
+            u_node[i] == gp.quicksum(u[i, j] for j in V),
             name=f"component_size_{i}"
         )
     
-    # 目标函数：最小化最大连通子图大小
-    # min max_i u_i
-    max_component_size = model.addVar(lb=0, ub=node_num, vtype=gp.GRB.INTEGER, name='max_component')
-    for i in range(node_num):
-        model.addConstr(max_component_size >= u_sum[i], name=f"max_component_{i}")
-    
-    model.setObjective(max_component_size, sense=gp.GRB.MINIMIZE)
-    
-    # 设置求解参数
-    if not verbose:
-        model.Params.LogToConsole = 0  # 不显示求解过程
-    else:
-        model.Params.LogToConsole = 1  # 显示求解过程
-    
-    if time_limit:
-        model.Params.TimeLimit = time_limit  # 设置时间限制
+    # max_u >= u_node[i] for all i
+    for i in V:
+        model.addConstr(max_u >= u_node[i], name=f"max_u_{i}")
     
     # 求解
-    print(f"\n开始优化...")
+    if verbose:
+        print("\n开始Gurobi优化求解...")
+    
     model.optimize()
     
     # 提取结果
-    if model.status == gp.GRB.OPTIMAL:
-        print(f"\n找到最优解!")
-    elif model.status == gp.GRB.TIME_LIMIT:
-        print(f"\n达到时间限制，返回当前最优解")
-    else:
-        print(f"\n求解状态: {model.status}")
-    
-    # 提取删除的边
     removed_edges = []
-    for (i, j), var in v.items():
-        if var.X > 0.5:  # 二进制变量，如果v_{i,j}=1表示边被删除
-            removed_edges.append((i, j))
+    
+    if model.status == GRB.OPTIMAL or model.status == GRB.TIME_LIMIT:
+        if verbose:
+            if model.status == GRB.OPTIMAL:
+                print("找到最优解！")
+            else:
+                print("达到时间限制，返回当前最优解")
+            print(f"目标值（最大连通分量大小）: {max_u.X:.2f}")
+        
+        # 提取被删除的边
+        for e in E:
+            if v_edge[e].X > 0.5:  # 二进制变量，>0.5表示为1
+                removed_edges.append(e)
+        
+        if verbose:
+            print(f"删除的边数量: {len(removed_edges)}")
+    
+    else:
+        print(f"求解失败，状态码: {model.status}")
+        # 如果求解失败，返回空结果
+        removed_edges = []
     
     # 构建残余图
     residual_graph = copy.deepcopy(graph)
-    
-    # 删除边
-    for u_node, v_node in removed_edges:
-        residual_graph[u_node].discard(v_node)
-        residual_graph[v_node].discard(u_node)
+    for u, v in removed_edges:
+        residual_graph[u].discard(v)
+        residual_graph[v].discard(u)
     
     # 计算最大连通子图大小
     max_connected_size = find_max_connected_graph(residual_graph)
-    
-    print(f"\n优化完成!")
-    print(f"  - 目标函数值: {max_component_size.X}")
-    print(f"  - 实际最大连通子图大小: {max_connected_size}")
-    print(f"  - 删除的边数: {len(removed_edges)}")
     
     return removed_edges, max_connected_size, residual_graph
