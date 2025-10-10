@@ -16,7 +16,7 @@ class Solver:
         
         Args:
             data: 数据集编号
-            method: 求解方法 ("greedy", "gurobi", "mealpy-ga", "mealpy-pso" 等)
+            method: 求解方法 ("greedy-s1", "gurobi", "mealpy-ga", "mealpy-pso" 等)
             **kwargs: 算法特定参数
         """
         self.algo_params = kwargs
