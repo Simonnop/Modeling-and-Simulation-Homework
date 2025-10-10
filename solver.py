@@ -6,6 +6,7 @@ from typing import Dict, Set, Tuple, List
 from utils import read_mat
 from methods.greedy_method import solve_greedy
 from methods.mealpy_method import solve_mealpy
+import argparse
 
 class Solver:
     """图切割问题求解器"""
@@ -237,13 +238,20 @@ class Solver:
 if __name__ == "__main__":
     # 使用示例
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sample_E", type=int, default=250)
+    parser.add_argument("--sample_S_begin", type=int, default=1)
+    parser.add_argument("--sample_S_end", type=int, default=100)
+    args = parser.parse_args()
+
     # 设置使用的测试网络
-    sample_E = 250
-    sample_S_begin = 1
-    sample_S_end = 100
+    sample_E = args.sample_E
+    sample_S_begin = args.sample_S_begin
+    sample_S_end = args.sample_S_end
 
     for data in range(sample_S_begin, sample_S_end + 1):
         data = f"E{sample_E}_S{data}"
+        print(f"正在处理数据: {data}")
         
         # 示例1: 使用贪心方法求解, s3 好一点
         solver = Solver(
