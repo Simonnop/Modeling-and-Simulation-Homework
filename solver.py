@@ -21,7 +21,7 @@ class Solver:
             **kwargs: 算法特定参数
         """
         self.algo_params = kwargs
-        data_path = f"samples/PlanarNetwork_N200_{data}.mat"
+        data_path = f"samples/PlanarNetwork_{data}.mat"
         self.data_id = f"{data}"
         self.data_path = data_path
         self.method = method
@@ -239,18 +239,22 @@ if __name__ == "__main__":
     # 使用示例
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--sample_N", type=int, default=200)
     parser.add_argument("--sample_E", type=int, default=250)
     parser.add_argument("--sample_S_begin", type=int, default=1)
     parser.add_argument("--sample_S_end", type=int, default=100)
+    parser.add_argument("--sample_C", type=int, default=1)
     args = parser.parse_args()
 
     # 设置使用的测试网络
+    sample_N = args.sample_N
     sample_E = args.sample_E
     sample_S_begin = args.sample_S_begin
     sample_S_end = args.sample_S_end
+    sample_C = args.sample_C
 
     for data in range(sample_S_begin, sample_S_end + 1):
-        data = f"E{sample_E}_S{data}"
+        data = f"N{sample_N}_E{sample_E}_S{data}"
         print(f"正在处理数据: {data}")
         
         # 示例1: 使用贪心方法求解, s3 好一点
@@ -258,7 +262,7 @@ if __name__ == "__main__":
             data=data,
             method="greedy-s3",
         )
-        solver.run(C=10)
+        solver.run(C=sample_C)
         
         # 示例2: 使用 Mealpy 遗传算法求解
         solver = Solver(
@@ -267,7 +271,7 @@ if __name__ == "__main__":
             pop_size=50,
             n_generations=100
         )
-        solver.run(C=10)
+        solver.run(C=sample_C)
         
         # 示例3: 使用 Gurobi 方法求解（需要安装 Gurobi）
         solver = Solver(
@@ -276,5 +280,5 @@ if __name__ == "__main__":
             time_limit=300,  # 5分钟时间限制
             verbose=True
         )
-        solver.run(C=10)
+        solver.run(C=sample_C)
 

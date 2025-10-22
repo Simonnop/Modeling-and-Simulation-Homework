@@ -147,7 +147,8 @@ def greedy_edge_removal_strategy3(
         edge_betweenness = defaultdict(float)
         nodes = list(g.keys())
         
-        for source in nodes:
+        from tqdm import tqdm
+        for source in tqdm(nodes, desc="Calculating edge betweenness", leave=True):
             # BFS计算从source到其他节点的最短路径
             from collections import deque
             queue = deque([source])
@@ -182,7 +183,10 @@ def greedy_edge_removal_strategy3(
         
         return edge_betweenness
     
-    for _ in range(C):
+    for i in range(C):
+
+        print(f"Calculating edge betweenness {i+1}/{C}")
+        
         if not all_edges:
             break
         

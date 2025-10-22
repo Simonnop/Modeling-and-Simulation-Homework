@@ -48,25 +48,28 @@ def read_mat(filepath:str) :
 
 def find_max_connected_graph(graph: Dict[int, Set[int]]) -> int:
     """
-    查找最大连通子图的节点数量
+    查找最大连通子图的节点数量（使用广度优先遍历BFS）
     Args:
         graph: 无向图的邻接表表示，格式为 {节点: {邻居节点集合}}
     Returns:
         int: 最大连通子图的节点数量
     """
+    from collections import deque
+
     visited = set()
     max_size = 0
 
-    def dfs(node, component):
-        component.add(node)
-        visited.add(node)
-        for neighbor in graph.get(node, set()):
-            if neighbor not in visited:
-                dfs(neighbor, component)
-
     for node in graph:
         if node not in visited:
-            component = set()
-            dfs(node, component)
+            queue = deque([node])
+            component = set([node])
+            visited.add(node)
+            while queue:
+                current = queue.popleft()
+                for neighbor in graph.get(current, set()):
+                    if neighbor not in visited:
+                        visited.add(neighbor)
+                        component.add(neighbor)
+                        queue.append(neighbor)
             max_size = max(max_size, len(component))
     return max_size

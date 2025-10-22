@@ -1,0 +1,1 @@
+python solver.py --sample_N 10000 --sample_E 11000 --sample_S_begin 4 --sample_S_end 4
