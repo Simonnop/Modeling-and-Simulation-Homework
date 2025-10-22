@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-创建英文版本的实验分析图表
-解决中文字体显示问题
+生成最终分析结果
+使用原始数据计算统计指标，但图表排除异常值
 """
 
 import os
@@ -83,8 +83,19 @@ def collect_all_results():
     
     return results
 
-def calculate_statistics(df):
-    """计算统计指标"""
+def remove_outliers_iqr(data, column, factor=1.5):
+    """使用IQR方法移除异常值"""
+    Q1 = data[column].quantile(0.25)
+    Q3 = data[column].quantile(0.75)
+    IQR = Q3 - Q1
+    
+    lower_bound = Q1 - factor * IQR
+    upper_bound = Q3 + factor * IQR
+    
+    return data[(data[column] >= lower_bound) & (data[column] <= upper_bound)]
+
+def calculate_original_statistics(df):
+    """计算原始数据的统计指标"""
     stats = {}
     
     # 按方法分组计算统计指标
@@ -105,17 +116,31 @@ def calculate_statistics(df):
     
     return stats
 
-def create_english_plots(df, stats):
-    """创建英文版本的对比图表"""
+def create_final_plots(df, stats):
+    """创建最终图表（绘图时排除异常值）"""
     
     fig, axes = plt.subplots(2, 2, figsize=(15, 12))
     
     # 1. Maximum Connected Component Size Comparison (Box Plot)
     ax1 = axes[0, 0]
     methods = df['method'].unique()
-    data_for_box = [df[df['method'] == method]['max_connected_size'].values for method in methods]
     
-    box_plot = ax1.boxplot(data_for_box, labels=methods, patch_artist=True)
+    # 为每个方法移除异常值用于绘图
+    data_for_box = []
+    labels = []
+    for method in methods:
+        method_data = df[df['method'] == method]
+        # 移除连通子图大小的异常值用于绘图
+        cleaned_data = remove_outliers_iqr(method_data, 'max_connected_size', factor=1.5)
+        if len(cleaned_data) > 0:
+            data_for_box.append(cleaned_data['max_connected_size'].values)
+            labels.append(f"{method}\n(n={len(cleaned_data)})")
+        else:
+            # 如果没有数据，使用原始数据
+            data_for_box.append(method_data['max_connected_size'].values)
+            labels.append(f"{method}\n(n={len(method_data)})")
+    
+    box_plot = ax1.boxplot(data_for_box, labels=labels, patch_artist=True)
     colors = ['lightblue', 'lightgreen', 'lightcoral', 'lightyellow']
     for patch, color in zip(box_plot['boxes'], colors[:len(methods)]):
         patch.set_facecolor(color)
@@ -126,9 +151,20 @@ def create_english_plots(df, stats):
     
     # 2. Solving Time Comparison (Box Plot)
     ax2 = axes[0, 1]
-    data_for_time = [df[df['method'] == method]['solve_time'].values for method in methods]
+    data_for_time = []
+    labels_time = []
+    for method in methods:
+        method_data = df[df['method'] == method]
+        # 移除求解时间的异常值用于绘图
+        cleaned_data = remove_outliers_iqr(method_data, 'solve_time', factor=1.5)
+        if len(cleaned_data) > 0:
+            data_for_time.append(cleaned_data['solve_time'].values)
+            labels_time.append(f"{method}\n(n={len(cleaned_data)})")
+        else:
+            data_for_time.append(method_data['solve_time'].values)
+            labels_time.append(f"{method}\n(n={len(method_data)})")
     
-    box_plot_time = ax2.boxplot(data_for_time, labels=methods, patch_artist=True)
+    box_plot_time = ax2.boxplot(data_for_time, labels=labels_time, patch_artist=True)
     for patch, color in zip(box_plot_time['boxes'], colors[:len(methods)]):
         patch.set_facecolor(color)
     
@@ -137,12 +173,17 @@ def create_english_plots(df, stats):
     ax2.set_yscale('log')  # Use logarithmic scale
     ax2.grid(True, alpha=0.3)
     
-    # 3. Accuracy vs Time Scatter Plot
+    # 3. Accuracy vs Time Scatter Plot (with outlier removal for clarity)
     ax3 = axes[1, 0]
     for method in methods:
         method_data = df[df['method'] == method]
-        ax3.scatter(method_data['solve_time'], method_data['max_connected_size'], 
-                   label=method, alpha=0.7, s=50)
+        # 移除异常值用于绘图
+        cleaned_data = remove_outliers_iqr(method_data, 'max_connected_size', factor=1.5)
+        cleaned_data = remove_outliers_iqr(cleaned_data, 'solve_time', factor=1.5)
+        
+        if len(cleaned_data) > 0:
+            ax3.scatter(cleaned_data['solve_time'], cleaned_data['max_connected_size'], 
+                       label=f"{method} (n={len(cleaned_data)})", alpha=0.7, s=50)
     
     ax3.set_xlabel('Solving Time (seconds)')
     ax3.set_ylabel('Maximum Connected Component Size')
@@ -154,7 +195,7 @@ def create_english_plots(df, stats):
     # 4. Method Performance Radar Chart
     ax4 = axes[1, 1]
     
-    # Calculate normalized metrics (lower is better)
+    # Calculate normalized metrics using original data
     metrics = ['max_connected_size_mean', 'solve_time_mean']
     method_names = list(stats.keys())
     
@@ -186,15 +227,14 @@ def create_english_plots(df, stats):
     ax4.grid(True)
     
     plt.tight_layout()
-    plt.savefig('english_results_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig('final_results_analysis.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     return fig
 
-def create_detailed_english_analysis(df):
-    """创建英文版本的详细分析图表"""
+def create_detailed_final_analysis(df):
+    """创建详细分析图表（绘图时排除异常值）"""
     
-    # Analysis by graph type
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     
     # 1. Performance Comparison by Graph Type
@@ -206,10 +246,23 @@ def create_detailed_english_analysis(df):
         methods = type_data['method'].unique()
         
         x_pos = np.arange(len(methods))
-        means = [type_data[type_data['method'] == method]['max_connected_size'].mean() 
-                for method in methods]
-        stds = [type_data[type_data['method'] == method]['max_connected_size'].std() 
-               for method in methods]
+        means = []
+        stds = []
+        labels = []
+        
+        for method in methods:
+            method_data = type_data[type_data['method'] == method]
+            # 移除异常值用于绘图
+            cleaned_data = remove_outliers_iqr(method_data, 'max_connected_size', factor=1.5)
+            
+            if len(cleaned_data) > 0:
+                means.append(cleaned_data['max_connected_size'].mean())
+                stds.append(cleaned_data['max_connected_size'].std())
+                labels.append(f"{method}\n(n={len(cleaned_data)})")
+            else:
+                means.append(method_data['max_connected_size'].mean())
+                stds.append(method_data['max_connected_size'].std())
+                labels.append(f"{method}\n(n={len(method_data)})")
         
         ax1.errorbar(x_pos, means, yerr=stds, label=graph_type, marker='o', capsize=5)
     
@@ -225,7 +278,13 @@ def create_detailed_english_analysis(df):
     ax2 = axes[0, 1]
     for method in df['method'].unique():
         method_data = df[df['method'] == method]
-        ax2.hist(method_data['solve_time'], alpha=0.7, label=method, bins=20)
+        # 移除异常值用于绘图
+        cleaned_data = remove_outliers_iqr(method_data, 'solve_time', factor=1.5)
+        
+        if len(cleaned_data) > 0:
+            ax2.hist(cleaned_data['solve_time'], alpha=0.7, label=f"{method} (n={len(cleaned_data)})", bins=20)
+        else:
+            ax2.hist(method_data['solve_time'], alpha=0.7, label=f"{method} (n={len(method_data)})", bins=20)
     
     ax2.set_xlabel('Solving Time (seconds)')
     ax2.set_ylabel('Frequency')
@@ -238,7 +297,13 @@ def create_detailed_english_analysis(df):
     ax3 = axes[1, 0]
     for method in df['method'].unique():
         method_data = df[df['method'] == method]
-        ax3.hist(method_data['max_connected_size'], alpha=0.7, label=method, bins=20)
+        # 移除异常值用于绘图
+        cleaned_data = remove_outliers_iqr(method_data, 'max_connected_size', factor=1.5)
+        
+        if len(cleaned_data) > 0:
+            ax3.hist(cleaned_data['max_connected_size'], alpha=0.7, label=f"{method} (n={len(cleaned_data)})", bins=20)
+        else:
+            ax3.hist(method_data['max_connected_size'], alpha=0.7, label=f"{method} (n={len(method_data)})", bins=20)
     
     ax3.set_xlabel('Maximum Connected Component Size')
     ax3.set_ylabel('Frequency')
@@ -246,17 +311,26 @@ def create_detailed_english_analysis(df):
     ax3.legend()
     ax3.grid(True, alpha=0.3)
     
-    # 4. Method Efficiency Comparison (Accuracy/Time)
+    # 4. Method Efficiency Comparison
     ax4 = axes[1, 1]
     efficiency_data = []
     method_names = []
     
     for method in df['method'].unique():
         method_data = df[df['method'] == method]
-        # Efficiency = 1 / (accuracy * time), lower is better
-        efficiency = 1 / (method_data['max_connected_size'] * method_data['solve_time'])
-        efficiency_data.append(efficiency.values)
-        method_names.append(method)
+        # 移除异常值用于绘图
+        cleaned_data = remove_outliers_iqr(method_data, 'max_connected_size', factor=1.5)
+        cleaned_data = remove_outliers_iqr(cleaned_data, 'solve_time', factor=1.5)
+        
+        if len(cleaned_data) > 0:
+            # Efficiency = 1 / (accuracy * time), lower is better
+            efficiency = 1 / (cleaned_data['max_connected_size'] * cleaned_data['solve_time'])
+            efficiency_data.append(efficiency.values)
+            method_names.append(f"{method}\n(n={len(cleaned_data)})")
+        else:
+            efficiency = 1 / (method_data['max_connected_size'] * method_data['solve_time'])
+            efficiency_data.append(efficiency.values)
+            method_names.append(f"{method}\n(n={len(method_data)})")
     
     ax4.boxplot(efficiency_data, labels=method_names)
     ax4.set_ylabel('Efficiency Metric (1/(Accuracy×Time))')
@@ -264,14 +338,14 @@ def create_detailed_english_analysis(df):
     ax4.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig('english_detailed_analysis.png', dpi=300, bbox_inches='tight')
+    plt.savefig('final_detailed_analysis.png', dpi=300, bbox_inches='tight')
     plt.show()
     
     return fig
 
 def main():
     """主函数"""
-    print("Creating English version analysis plots...")
+    print("Generating final analysis with original data statistics...")
     
     # 收集所有结果
     results = collect_all_results()
@@ -286,27 +360,28 @@ def main():
     print(f"DataFrame shape: {df.shape}")
     print(f"Columns: {df.columns.tolist()}")
     
-    # 计算统计指标
-    stats = calculate_statistics(df)
+    # 计算原始数据的统计指标
+    stats = calculate_original_statistics(df)
     
-    # 创建英文对比图表
-    print("Creating English comparison plots...")
-    create_english_plots(df, stats)
+    # 创建最终图表（绘图时排除异常值）
+    print("Creating final comparison plots...")
+    create_final_plots(df, stats)
     
-    # 创建英文详细分析图表
-    print("Creating English detailed analysis plots...")
-    create_detailed_english_analysis(df)
+    # 创建详细分析图表
+    print("Creating final detailed analysis plots...")
+    create_detailed_final_analysis(df)
     
-    print("English analysis completed!")
-    print("- Comparison plots: english_results_analysis.png")
-    print("- Detailed analysis: english_detailed_analysis.png")
+    print("Final analysis completed!")
+    print("- Comparison plots: final_results_analysis.png")
+    print("- Detailed analysis: final_detailed_analysis.png")
     
-    # 打印简要统计
-    print("\n=== Summary Statistics ===")
+    # 打印原始数据统计
+    print("\n=== Original Data Statistics ===")
     for method, stat in stats.items():
         print(f"{method}:")
         print(f"  Average Accuracy: {stat['max_connected_size_mean']:.2f}")
         print(f"  Average Time: {stat['solve_time_mean']:.2f} seconds")
+        print(f"  Sample Count: {stat['count']}")
 
 if __name__ == "__main__":
     main()
