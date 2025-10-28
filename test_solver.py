@@ -229,9 +229,9 @@ class Solver:
         
         # 生成默认文件名
         if save_path is None:
-            save_path = f"results/{self.data_id}/{self.method}-{self.max_connected_size}_cut_edges.txt"
+            save_path = f"results/{self.data_id}/{self.method}_cut_edges.txt"
         if visualize_path is None:
-            visualize_path = f"results/{self.data_id}/{self.method}-{self.max_connected_size}_visualization.png"
+            visualize_path = f"results/{self.data_id}/{self.method}_visualization.png"
         
         # 保存结果
         self.save_cut_edges(save_path)
@@ -266,91 +266,18 @@ if __name__ == "__main__":
         data = f"N{sample_N}_E{sample_E}_S{data}"
         print(f"正在处理数据: {data}")
         
-        # # 示例1: 使用贪心方法求解, s3 好一点
-        # solver = Solver(
-        #     data=data,
-        #     method="greedy-s1",
-        # )
-        # solver.run(C=sample_C)
-        # # 
-        # solver = Solver(
-        #     data=data,
-        #     method="greedy-s2",
-        # )
-        # solver.run(C=sample_C)
-        # # 
-
-        # solver = Solver(
-        #     data=data,
-        #     method="greedy-s3",
-        # )
-        # solver.run(C=sample_C)
-        
-        # solver = Solver(
-        #     data=data,
-        #     method="greedy-s4",
-        # )
-        # solver.run(C=sample_C)
-        
-        # 示例2: 使用 Mealpy 元启发式求解
-
-        # pop_size = 100
-        # n_generations = 200
-
-        # solver = Solver(
-        #     data=data,
-        #     method="mealpy-ga",
-        #     pop_size=pop_size,
-        #     n_generations=n_generations
-        # )
-        # solver.run(C=sample_C)
-        
-        # solver = Solver(
-        #     data=data,
-        #     method="mealpy-pso",
-        #     pop_size=pop_size,
-        #     n_generations=n_generations
-        # )
-        # solver.run(C=sample_C)
-
-        # solver = Solver(
-        #     data=data,
-        #     method="mealpy-de",
-        #     pop_size=pop_size,
-        #     n_generations=n_generations
-        # )
-        # solver.run(C=sample_C)
-
-        # solver = Solver(
-        #     data=data,
-        #     method="mealpy-woa",
-        #     pop_size=pop_size,
-        #     n_generations=n_generations
-        # )
-        # solver.run(C=sample_C)
-
-        # solver = Solver(
-        #     data=data,
-        #     method="mealpy-gwo",
-        #     pop_size=pop_size,
-        #     n_generations=n_generations
-        # )
-        # solver.run(C=sample_C)
-
-        # solver = Solver(
-        #     data=data,
-        #     method="mealpy-abc",
-        #     pop_size=pop_size,
-        #     n_generations=n_generations
-        # )
-        # solver.run(C=sample_C)
-        
-        # 示例3: 使用 Gurobi 方法求解（需要安装 Gurobi）
         solver = Solver(
             data=data,
-            method="gurobi",
-            time_limit=300,  # 5分钟时间限制
-            verbose=True
+            method="init",
         )
         solver.run(C=sample_C)
+        
+        # # 示例3: 使用 Gurobi 方法求解（需要安装 Gurobi）
+        # solver = Solver(
+        #     data=data,
+        #     method="gurobi",
+        #     time_limit=300,  # 5分钟时间限制
+        #     verbose=True
+        # )
+        # solver.run(C=sample_C)
 

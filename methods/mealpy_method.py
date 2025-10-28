@@ -84,7 +84,8 @@ def solve_mealpy(
     algorithm: str = "GA",  # GA, PSO, DE, WOA 等
     pop_size: int = 50,
     n_generations: int = 100,
-    seed: int = None
+    seed: int = None,
+    time_limit: float = 300
 ) -> Tuple[List[Tuple[int, int]], int, Dict[int, Set[int]]]:
     """
     使用 mealpy 的多种算法求解边移除问题
@@ -117,7 +118,7 @@ def solve_mealpy(
         model = PSO.OriginalPSO(epoch=n_generations, pop_size=pop_size, seed=seed)
     elif algorithm == "DE":
         from mealpy import DE
-        model = DE.BaseDE(epoch=n_generations, pop_size=pop_size, wf=0.8, cr=0.9, seed=seed)
+        model = DE.JADE(epoch=n_generations, pop_size=pop_size, wf=0.8, cr=0.9, seed=seed)
     elif algorithm == "WOA":
         from mealpy import WOA
         model = WOA.OriginalWOA(epoch=n_generations, pop_size=pop_size, seed=seed)
@@ -136,7 +137,10 @@ def solve_mealpy(
         problem={"obj_func": problem.fitness_function, 
                 "bounds": bounds, 
                 "minmax": "min",
-                "log_to": None}
+                "log_to": None},
+        termination={
+            "max_time": time_limit
+        }
     )
     best_position = g_best.solution
     best_fitness = g_best.target.fitness

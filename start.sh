@@ -3,5 +3,7 @@ for start in $(seq 1 50 100); do
   # 计算当前区间的结束值（起始值加9）
   end=$((start + 49))
   # 后台运行 solver.py 脚本传递起始和结束参数及样本参数, 重定向输出到 /dev/null
-  nohup python solver.py --sample_E 300 --sample_S_begin $start --sample_S_end $end --sample_C 10 > /dev/null 2>&1 &
+  nohup python solver.py --sample_E 300 --sample_S_begin $start --sample_S_end $end --sample_C 30 > /dev/null 2>&1 &
+  nohup python solver.py --sample_E 400 --sample_S_begin $start --sample_S_end $end --sample_C 40 > /dev/null 2>&1 &
+  nohup python solver.py --sample_E 500 --sample_S_begin $start --sample_S_end $end --sample_C 50 > /dev/null 2>&1 &
 done

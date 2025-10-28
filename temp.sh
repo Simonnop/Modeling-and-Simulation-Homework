@@ -1,1 +1,2 @@
-python solver.py --sample_N 10000 --sample_E 11000 --sample_S_begin 4 --sample_S_end 4
+# python test_solver.py --sample_N 10000 --sample_E 12500 --sample_S_begin 3 --sample_S_end 3 --sample_C 350
+python test_solver.py --sample_N 200 --sample_E 300 --sample_S_begin 1 --sample_S_end 1 --sample_C 10

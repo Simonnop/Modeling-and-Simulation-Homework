@@ -248,7 +248,7 @@ def greedy_edge_removal_strategy4(
             degree_u = len(graph_copy.get(u, set()))
             degree_v = len(graph_copy.get(v, set()))
             triangles = count_triangles_with_edge(graph_copy, u, v)
-            score = degree_u * degree_v + 10 * triangles  # 三角形权重更高
+            score = degree_u * degree_v - 10 * triangles  # 三角形权重更高
             edge_scores.append((score, edge))
         
         # 选择得分最高的边
