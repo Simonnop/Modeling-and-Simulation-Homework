@@ -479,7 +479,7 @@ def main():
     parser.add_argument('--E', type=int, required=True, help='Number of edges E', default=300)
     parser.add_argument('--results_dir', type=str, default='results', help='Results root directory')
     parser.add_argument('--figs_dir', type=str, default='figs', help='Figures root directory')
-    parser.add_argument('--methods', type=str, nargs='*', help='Methods to include (e.g., greedy-s3 mealpy-ga)', default=['greedy-s3', 'mealpy-ga', 'mealpy-pso', 'gurobi'])
+    parser.add_argument('--methods', type=str, nargs='*', help='Methods to include (e.g., greedy-s3 mealpy-ga)', default=['greedy-s3', 'mealpy-ga', 'mealpy-pso', 'mealpy-woa', 'mealpy-gwo', 'mealpy-de', 'gurobi'])
     args = parser.parse_args()
 
     N = args.N

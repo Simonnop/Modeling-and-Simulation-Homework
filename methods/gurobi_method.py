@@ -17,27 +17,39 @@ def solve_gurobi(
     """
     使用Gurobi求解器求解图分割优化问题
     
-    优化模型：
-    min max u_i
-    s.t.
-    (1) sum c_i*v_i + sum c_{i,j}*v_{i,j} <= C (预算约束)
-    (2) u_{i,j} >= 1 - v_i - v_j - v_{i,j}, ∀(i,j) ∈ E (边连通性约束)
-    (3) u_{i,j} >= u_{k,j} - v_{i,k} - v_i, ∀i,j ∈ V, i≠j, ∀k ∈ N_G(i), k≠j (非邻居节点约束)
-    (4) u_{i,j} <= sum_{k∈N_G(i),k≠j} u_{k,j} + v_{i,j}, ∀(i,j) ∈ E (邻居节点下界)
-    (5) u_{i,j} <= sum_{k∈N_G(i),k≠j} u_{k,j}, ∀(i,j) ∈ E (邻居节点上界)
-    (6) u_{i,j} <= v_i, ∀i,j ∈ V
-    (7) u_{i,j} <= v_j, ∀i,j ∈ V
-    (8) v_i, v_{i,j} ∈ {0,1}, ∀i ∈ V, ∀(i,j) ∈ E
-    (9) u_{i,j} ∈ {0,1}, ∀i,j ∈ V
-    (10) u_{i,j} = u_{j,i}, ∀i,j ∈ V (对称性)
-    (11) u_i = sum_{j∈V} u_{i,j}, ∀i ∈ V (连通分量大小)
-    
+    优化模型（与实现一致）：
+
+    决策变量：
+    - v_edge[(i,j)] ∈ {0,1}: 边 (i,j) 是否被删除（1 表示删除）
+    - u_{i,j} ∈ {0,1}: 辅助二进制变量，表示从 i 是否能到达 j（1 表示可达）
+    - u_node[i] ≥ 0: 节点 i 所在连通分量大小（连续变量，0 ≤ u_node[i] ≤ n）
+    - max_u ≥ 0: 最大连通分量大小（目标变量）
+
+    目标：
+    minimize max_u
+
+    主要约束：
+    (1) 预算约束: 删除的边数量不超过 C，即 sum_{(i,j)∈E} v_edge[(i,j)] ≤ C
+    (2) 边连通性: 对任意边 (i,j)∈E, u_{i,j} ≥ 1 - v_edge[(i,j)]（若边未删除则可达）
+    (3) 传播/传递约束: 对任意 i≠j, 对任意 k∈N(i), k≠j, 有 u_{i,j} ≥ u_{k,j} - v_edge[(min(i,k),max(i,k))]
+    (4) 上界传播（邻边）: 对 (i,j)∈E, u_{i,j} ≤ sum_{k∈N(i)\{j}} u_{k,j} + v_edge[(i,j)]
+    (5) 上界传播（非边）: 对 (i,j)∉E, u_{i,j} ≤ sum_{k∈N(i)\{j}} u_{k,j}
+    (6) 自达: u_{i,i} = 1
+    (7) 对称性: u_{i,j} = u_{j,i}
+    (8) 连通分量大小定义: u_node[i] = sum_{j∈V} u_{i,j}
+    (9) max_u ≥ u_node[i], ∀i
+
+    变量类型：
+    - v_edge 为二进制变量
+    - u 为二进制辅助变量
+    - u_node 与 max_u 为连续变量
+
     Args:
         nodes_dict: 节点字典
         edges_dict: 边字典
         neighbor_nodes_dict: 邻居节点字典
         graph: 无向图邻接表
-        C: 需要删除的边数量
+        C: 最多可删除的边数量（预算）
         time_limit: 求解时间限制（秒）
         verbose: 是否打印详细信息
     

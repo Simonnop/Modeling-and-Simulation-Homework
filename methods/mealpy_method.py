@@ -34,16 +34,6 @@ class GraphCutProblem:
         print(f"问题初始化: 共有 {self.num_edges} 条边，需要移除 {C} 条")
     
     def decode_solution(self, solution: np.ndarray) -> List[Tuple[int, int]]:
-        """
-        将连续解码为离散的边选择
-        
-        Args:
-            solution: 连续向量，每个元素在[0,1]之间
-        
-        Returns:
-            选中的边列表
-        """
-        # 获取每条边的得分
         edge_scores = [(solution[i], self.edge_list[i]) for i in range(self.num_edges)]
         # 按得分排序，选择得分最高的C条边
         edge_scores.sort(reverse=True)
@@ -51,28 +41,12 @@ class GraphCutProblem:
         return selected_edges
     
     def fitness_function(self, solution: np.ndarray) -> float:
-        """
-        适应度函数：计算移除边后的最大连通子图大小
-        
-        Args:
-            solution: 连续向量表示的解
-        
-        Returns:
-            最大连通子图大小（需要最小化）
-        """
-        # 解码为边列表
         removed_edges = self.decode_solution(solution)
-        
-        # 构建残余图
         residual_graph = copy.deepcopy(self.graph)
         for u, v in removed_edges:
             residual_graph[u].discard(v)
             residual_graph[v].discard(u)
-        
-        # 计算最大连通子图大小
-        max_connected_size = find_max_connected_graph(residual_graph)
-        
-        return max_connected_size
+        return find_max_connected_graph(residual_graph)
 
 
 def solve_mealpy(
@@ -112,22 +86,22 @@ def solve_mealpy(
     # 根据算法类型创建模型
     if algorithm == "GA":
         from mealpy import GA
-        model = GA.BaseGA(epoch=n_generations, pop_size=pop_size, pc=0.9, pm=0.1, seed=seed)
+        model = GA.BaseGA(epoch=n_generations, pop_size=pop_size, seed=seed)
     elif algorithm == "PSO":
         from mealpy import PSO
         model = PSO.OriginalPSO(epoch=n_generations, pop_size=pop_size, seed=seed)
     elif algorithm == "DE":
         from mealpy import DE
-        model = DE.JADE(epoch=n_generations, pop_size=pop_size, wf=0.8, cr=0.9, seed=seed)
+        model = DE.JADE(epoch=n_generations, pop_size=pop_size, seed=seed)
     elif algorithm == "WOA":
         from mealpy import WOA
         model = WOA.OriginalWOA(epoch=n_generations, pop_size=pop_size, seed=seed)
     elif algorithm == "GWO":
         from mealpy import GWO
         model = GWO.OriginalGWO(epoch=n_generations, pop_size=pop_size, seed=seed)
-    elif algorithm == "ABC":
-        from mealpy import ABC
-        model = ABC.OriginalABC(epoch=n_generations, pop_size=pop_size, seed=seed)
+    elif algorithm == "SMA":
+        from mealpy import SMA
+        model = SMA.OriginalSMA(epoch=n_generations, pop_size=pop_size, seed=seed)
     else:
         raise ValueError(f"未知的算法类型: {algorithm}")
     
@@ -137,7 +111,9 @@ def solve_mealpy(
         problem={"obj_func": problem.fitness_function, 
                 "bounds": bounds, 
                 "minmax": "min",
-                "log_to": None},
+                "verbose": True},
+        mode='thread',
+        n_workers=8,
         termination={
             "max_time": time_limit
         }
